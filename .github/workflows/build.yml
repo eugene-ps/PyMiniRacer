@@ -55,14 +55,7 @@ jobs:
           # well run on bullseye (even though buster would provide an older supported
           # build distro):
           - debian:bullseye
-          - arm64v8/debian:bullseye
-          # Alpine 3.19 includes a clang new enough for V8 to build (with only minor
-          # patches!). Builds on 3.19 seem incompatible with <= 3.18 due to libstdc++
-          # symbols. (And we can't just run on an old Alpine and update clang from the
-          # llvm site, because unlike Debian, the llvm project doesn't maintain
-          # updated packages for old Alpine distros.)
-          - alpine:3.19
-          - arm64v8/alpine:3.19
+          - rockylinux:8.8
         exclude:
           # The aarch64 builds run really slowly, so let's skip them except for
           # releases.
@@ -296,65 +289,11 @@ jobs:
               ;;
           esac
 
-  # We build for Mac and Windows directly on the supported GitHub-hosted runners.
-  non-linux-wheels:
-    name: Build wheel for ${{ matrix.config.os }}
-    runs-on: ${{ matrix.config.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          # Note that to maximize compatibility of generated wheels, we build on the
-          # *oldest* supported GitHub-hosted runners, per
-          # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners
-          - os: windows-2019  # x86_64
-          - os: macos-11  # this is the earliest x86_64 runner
-          - os: macos-14  # this is the earliest arm64 runner
-
-    steps:
-    - name: Configure git
-      run: git config --global core.symlinks true
-
-    - uses: actions/checkout@v3
-      with:
-        # Fetch all tags
-        fetch-depth: 0
-
-    - name: Run sccache-cache
-      uses: mozilla-actions/sccache-action@v0.0.3
-      # For security reasons, only use sccache on releases:
-      if: ${{ startsWith(github.ref, 'refs/tags') }}
-
-    - uses: actions/setup-python@v5
-      with:
-        # depot_tools still uses distutils which is gone in 3.12:
-        python-version: '3.11'
-
-    - name: Build wheel
-      run: |
-        set -e
-        python3 -m pip install --upgrade build
-        python3 -m build --wheel
-
-    - uses: actions/upload-artifact@v3
-      with:
-        name: wheels
-        path: dist/*
-        if-no-files-found: error
-
-    - name: Test wheel
-      run: |
-        set -e
-        python3 -m pip install --upgrade hatch hatch-fancy-pypi-readme hatch-mkdocs
-        hatch run testinstalled:install dist/*.whl
-        hatch run testinstalled:run
-
   release:
     name: Create GitHub release
     if: startsWith(github.ref, 'refs/tags')
     needs:
     - linux-wheels
-    - non-linux-wheels
     - sdist
     runs-on: ubuntu-latest
 
@@ -365,23 +304,3 @@ jobs:
       uses: ncipollo/release-action@v1
       with:
         artifacts: "wheels/*,sdist/*"
-
-  publish:
-    name: Upload release to PyPI
-    if: startsWith(github.ref, 'refs/tags')
-    needs:
-    - release
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/mini-racer
-    permissions:
-      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
-    steps:
-    - uses: actions/download-artifact@v3
-
-    - name: Make dist directory
-      run: mkdir dist && cp wheels/* sdist/* dist/
-
-    - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1

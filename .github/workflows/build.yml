@@ -1,12 +1,11 @@
 name: pypi-build-rocky
 
 on:
-  # For PRs:
-  pull_request: {}
-  # For releases:
   push:
     tags:
-      - v*
+    - v*
+    branches:
+    - main
 
 concurrency:
   group: build-${{ github.head_ref }}

@@ -54,7 +54,6 @@ jobs:
           # well run on bullseye (even though buster would provide an older supported
           # build distro):
           - rockylinux:8.8
-          - debian:bullseye
         exclude:
           # The aarch64 builds run really slowly, so let's skip them except for
           # releases.
@@ -199,33 +198,17 @@ jobs:
               # managed python:
               PACKAGES="${PACKAGES} curl"
               # the V8 build generation system (GN) uses pkg-config:
-              PACKAGES="${PACKAGES} pkg-config"
+              PACKAGES="${PACKAGES} pkg-config gn"
               # the clang build script still uses the system lld:
+              PACKAGES="${PACKAGES} clang"
+              PACKAGES="${PACKAGES} llvm"
               PACKAGES="${PACKAGES} lld"
               # we use grep below
               PACKAGES="${PACKAGES} grep"
+
               yum update -y
               yum install -y ${PACKAGES}
 
-              # the V8 build runs on clang by default. On mainstream platforms, V8
-              # bundles a working clang, but not on arm64. So we need to bring our own
-              # clang and llvm and lld.
-              # bullseye ships an ancient llvm, clang, and lld. Add the latest stable:
-              LLVM_VERSION=18
-              curl https://apt.llvm.org/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-              echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-${LLVM_VERSION} main" \
-                > /etc/apt/sources.list.d/llvm.list
-              apt-get update -q -y
-              PACKAGES="clang-${LLVM_VERSION} llvm-${LLVM_VERSION} lld-${LLVM_VERSION}"
-              apt-get install -q -y ${PACKAGES}
-              # set up non-versioned symlinks to the latest stable clang:
-              for pkg in ${PACKAGES}; do
-                for f in $(dpkg -L "${pkg}" | grep "/usr/bin/.*-${LLVM_VERSION}"); do
-                  no18="${f%-${LLVM_VERSION}}"
-                  rm -f "${no18}"
-                  ln -s "${f}" "${no18}"
-                done
-              done
               ;;
 
           esac

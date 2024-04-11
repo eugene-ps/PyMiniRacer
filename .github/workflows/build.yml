@@ -184,6 +184,50 @@ jobs:
               apk update
               apk add ${PACKAGES}
               ;;
+            *rocky*)
+              # Let's download some system packages!
+              # Note that the precise list of packages we need is intertwined not just
+              # with V8, but with helpers/build_v8.py, which makes various decisions
+              # about using system versus V8-provided tools and dependencies.
+              PACKAGES=""
+              # First, some basic wheel-building dependencies:
+              PACKAGES="${PACKAGES} python3-devel"
+              # helpers/v8_build.py uses git to download depot_tools, and
+              # depot_tools/gclient uses it to grab V8:
+              PACKAGES="${PACKAGES} git"
+              # depot_tools/cipd uses curl to download various things including its own
+              # managed python:
+              PACKAGES="${PACKAGES} curl"
+              # the V8 build generation system (GN) uses pkg-config:
+              PACKAGES="${PACKAGES} pkg-config"
+              # the clang build script still uses the system lld:
+              PACKAGES="${PACKAGES} lld"
+              # we use grep below
+              PACKAGES="${PACKAGES} grep"
+              yum update -y
+              yum install -y ${PACKAGES}
+
+              # the V8 build runs on clang by default. On mainstream platforms, V8
+              # bundles a working clang, but not on arm64. So we need to bring our own
+              # clang and llvm and lld.
+              # bullseye ships an ancient llvm, clang, and lld. Add the latest stable:
+              LLVM_VERSION=18
+              curl https://apt.llvm.org/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+              echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-${LLVM_VERSION} main" \
+                > /etc/apt/sources.list.d/llvm.list
+              apt-get update -q -y
+              PACKAGES="clang-${LLVM_VERSION} llvm-${LLVM_VERSION} lld-${LLVM_VERSION}"
+              apt-get install -q -y ${PACKAGES}
+              # set up non-versioned symlinks to the latest stable clang:
+              for pkg in ${PACKAGES}; do
+                for f in $(dpkg -L "${pkg}" | grep "/usr/bin/.*-${LLVM_VERSION}"); do
+                  no18="${f%-${LLVM_VERSION}}"
+                  rm -f "${no18}"
+                  ln -s "${f}" "${no18}"
+                done
+              done
+              ;;
+
           esac
 
           if [ ! -z "${{ env.ACTIONS_CACHE_URL }}" ]; then
@@ -303,3 +347,4 @@ jobs:
       uses: ncipollo/release-action@v1
       with:
         artifacts: "wheels/*,sdist/*"
+

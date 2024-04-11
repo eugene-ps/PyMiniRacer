@@ -54,8 +54,8 @@ jobs:
           # But V8 ships its own bullseye sysroot and links against that, so we may as
           # well run on bullseye (even though buster would provide an older supported
           # build distro):
-          - debian:bullseye
           - rockylinux:8.8
+          - debian:bullseye
         exclude:
           # The aarch64 builds run really slowly, so let's skip them except for
           # releases.

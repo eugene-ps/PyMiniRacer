@@ -1,4 +1,4 @@
-name: pypi-build
+name: pypi-build-rocky
 
 on:
   # For PRs:
